@@ -11,22 +11,29 @@ end
 
 describe Rack::ScriptStacker do
   let(:js_files) { ['main.js', 'util.js'] }
+  let(:vendor_js_files) { ['jquery.js', 'buttscript.js'] }
   let(:css_files) { ['main.css', '_whatever.css'] }
-  let(:body) { '<div>whatever</div>' }
-
-  before :each do
-    @middleware = Rack::ScriptStacker.new app_with_body(body) do
+  let(:middleware) do
+    Rack::ScriptStacker.new app_with_body(body) do
       css 'static/css'
       javascript 'static/javascripts'
     end
-    allow_any_instance_of(Rack::Stacker).to receive(:files_for).with('static/css').and_return(css_files)
-    allow_any_instance_of(Rack::Stacker).to receive(:files_for).with('static/javascripts').and_return(js_files)
-    @response = @middleware.call nil
+  end
+
+  before :each do
+    allow_any_instance_of(Rack::Stacker).to receive(:files_for).with('static/css/').and_return(css_files)
+    allow_any_instance_of(Rack::Stacker).to receive(:files_for).with('static/javascripts/').and_return(js_files)
+    allow_any_instance_of(Rack::Stacker).to receive(:files_for).with('vendor/javascripts/').and_return(vendor_js_files)
+    @response = middleware.call nil
     @response_body = @response[2][0]
   end
 
-  it 'does not change without replacement slots' do
-    expect(@response_body).to eq('<div>whatever</div>')
+  context 'inactive' do
+    let(:body) { '<div>whatever</div>' }
+
+    it 'does not change without replacement slots' do
+      expect(@response_body).to eq('<div>whatever</div>')
+    end
   end
 
   context 'javascript' do
@@ -65,6 +72,59 @@ describe Rack::ScriptStacker do
           <link rel="stylesheet" type="text/css" href="/static/css/main.css" />
           <link rel="stylesheet" type="text/css" href="/static/css/_whatever.css" />
         </head>
+      HTML
+    end
+  end
+
+  context 'path normalization' do
+    let(:middleware) do
+      Rack::ScriptStacker.new app_with_body(body) do
+        css 'static/css/' => '/stylesheets'
+        javascript 'static/javascripts' => 'static/js'
+      end
+    end
+    let(:body) do
+      smart_deindent(<<-HTML)
+        <<< CSS >>>
+        <<< JAVASCRIPT >>>
+      HTML
+    end
+
+    it 'does not mess up the paths' do
+      expect(@response_body).to eq(smart_deindent(<<-HTML))
+        <link rel="stylesheet" type="text/css" href="/stylesheets/main.css" />
+        <link rel="stylesheet" type="text/css" href="/stylesheets/_whatever.css" />
+        <script type="text/javascript" src="/static/js/main.js"></script>
+        <script type="text/javascript" src="/static/js/util.js"></script>
+      HTML
+    end
+  end
+
+  context 'multiple specs for one stacker' do
+    let(:middleware) do
+      Rack::ScriptStacker.new app_with_body(body) do
+        javascript 'vendor/javascripts'
+        javascript 'static/javascripts'
+      end
+    end
+    let(:body) do
+      smart_deindent(<<-HTML)
+        <body>
+          <div>lmao</div>
+          <<< JAVASCRIPT >>>
+        </body>
+      HTML
+    end
+
+    it 'injects tags in order' do
+      expect(@response_body).to eq(smart_deindent(<<-HTML))
+        <body>
+          <div>lmao</div>
+          <script type="text/javascript" src="/vendor/javascripts/jquery.js"></script>
+          <script type="text/javascript" src="/vendor/javascripts/buttscript.js"></script>
+          <script type="text/javascript" src="/static/javascripts/main.js"></script>
+          <script type="text/javascript" src="/static/javascripts/util.js"></script>
+        </body>
       HTML
     end
   end

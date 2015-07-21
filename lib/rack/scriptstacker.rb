@@ -58,26 +58,32 @@ module Rack
       @body = body
     end
 
-    def run_specs stack_spec, stackers
-      stackers.each do |name, stacker|
-        eigenclass = class << self; self; end
-        eigenclass.send :define_method, name do |paths|
-          if paths.respond_to? :key
-            # this is just for pretty method calls, eg.
-            # css 'stylesheets' => 'static/css'
-            source_path, serve_path = paths.to_a.flatten
-          else
-            # if only one path is given, use the same for both;
-            # this is just like how Rack::Static works
-            source_path = serve_path = paths
+    def run_specs stack_spec, stacker_configs
+      stackers = stacker_configs.map do |name, config|
+        Stacker.new(config).tap do |stacker|
+          eigenclass = class << self; self; end
+          eigenclass.send :define_method, name do |paths|
+            if paths.respond_to? :key
+              # this is just for pretty method calls, eg.
+              # css 'stylesheets' => 'static/css'
+              source_path, serve_path = paths.to_a.flatten
+            else
+              # if only one path is given, use the same for both;
+              # this is just like how Rack::Static works
+              source_path = serve_path = paths
+            end
+            stacker.find_files source_path, serve_path
           end
-          @body = Stacker.new(stacker).find_and_inject @body, source_path, serve_path
         end
       end
 
       instance_eval &stack_spec
 
-      @body
+      @body.map do |chunk|
+        stackers.reduce chunk do |memo, stacker|
+          stacker.replace_slot(memo)
+        end
+      end
     end
   end
 
@@ -86,28 +92,28 @@ module Rack
       @template = config[:template]
       @glob = config[:glob]
       @slot = config[:slot]
+      @files = []
     end
 
-    def find_and_inject body, source_path, serve_path
-      files = files_for source_path
+    def find_files source_path, serve_path
+      source_path += '/' if !source_path.end_with? '/'
       serve_path += '/' if !serve_path.end_with? '/'
-      body.map do |chunk|
-        file_replace chunk, files, '/' + serve_path
+      serve_path = '/' + serve_path if !serve_path.start_with? '/'
+      @files = @files + files_for(source_path).map do |filename|
+        sprintf @template, serve_path + filename
       end
     end
 
-    private
-
-    def file_replace chunk, files, serve_path
+    def replace_slot chunk
       chunk.gsub /^(\s*)<<< #{@slot} >>>/ do
         indent = $1
-        files.map do |filename|
-          sprintf @template, serve_path + filename
-        end.map do |line|
+        @files.map do |line|
           indent + line
         end.join "\n"
       end
     end
+
+    private
 
     def files_for source_path
       Dir[source_path + @glob]
