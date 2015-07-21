@@ -6,7 +6,7 @@ def smart_deindent str
 end
 
 def app_with_body body
-  lambda { |env| [nil, nil, [body]] }
+  lambda { |env| [200, {'Content-Type' => 'text/html'}, [body]] }
 end
 
 describe Rack::ScriptStacker do
@@ -15,9 +15,12 @@ describe Rack::ScriptStacker do
   let(:body) { '<div>whatever</div>' }
 
   before :each do
-    @middleware = Rack::ScriptStacker.new app_with_body(body)
-    allow(@middleware).to receive(:files_for).with('javascripts/*.js').and_return(js_files)
-    allow(@middleware).to receive(:files_for).with('css/*.css').and_return(css_files)
+    @middleware = Rack::ScriptStacker.new app_with_body(body) do
+      css 'static/css'
+      javascript 'static/javascripts'
+    end
+    allow_any_instance_of(Rack::Stacker).to receive(:files_for).with('static/css').and_return(css_files)
+    allow_any_instance_of(Rack::Stacker).to receive(:files_for).with('static/javascripts').and_return(js_files)
     @response = @middleware.call nil
     @response_body = @response[2][0]
   end
