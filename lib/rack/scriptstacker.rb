@@ -37,11 +37,16 @@ module Rack
 
     def call env
       response = @app.call(env)
-      [
-        response[0],
-        response[1],
-        replace_in_body(response[2])
-      ]
+
+      if response[1]['Content-Type'] != 'text/html'
+        response
+      else
+        [
+          response[0],
+          response[1],
+          replace_in_body(response[2])
+        ]
+      end
     end
 
     private
