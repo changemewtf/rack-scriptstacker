@@ -21,6 +21,7 @@ module Rack
     def replace_in_body body
       body.map do |chunk|
         chunk.gsub 'hey', 'sup yo'
+        chunk.gsub 'mate', 'wat'
       end
     end
   end
