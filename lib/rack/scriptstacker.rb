@@ -18,19 +18,23 @@ module Rack
 
     private
 
+    JS_TEMPLATE = '<script type="text/javascript" src="/static/javascripts/%<filename>s"></script>'
+    CSS_TEMPLATE = '<link rel="stylesheet" type="text/css" href="/static/css/%<filename>s" />'
+
     def replace_in_body body
       body.map do |chunk|
-        chunk.gsub /^(\s*)<<< JAVASCRIPT >>>/ do
-          indent = $1
-          js_files.map do |filename|
-            %Q[#{indent}<script type="text/javascript" src="/static/javascripts/#{filename}"></script>]
-          end.join("\n")
-        end.gsub /^(\s*)<<< CSS >>>/ do
-          indent = $1
-          css_files.map do |filename|
-            %Q[#{indent}<link rel="stylesheet" type="text/css" href="/static/css/#{filename}" />]
-          end.join("\n")
-        end
+        chunk = file_replace(chunk, js_files, 'JAVASCRIPT', JS_TEMPLATE)
+        chunk = file_replace(chunk, css_files, 'CSS', CSS_TEMPLATE)
+        chunk
+      end
+    end
+
+    def file_replace chunk, files, slot, template
+      chunk.gsub /^(\s*)<<< #{slot} >>>/ do
+        indent = $1
+        files.map do |filename|
+          sprintf "#{indent}#{template}", filename: filename
+        end.join("\n")
       end
     end
 
