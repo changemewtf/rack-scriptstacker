@@ -1,5 +1,14 @@
 require "rack/scriptstacker/version"
 
+class ::Hash
+  def recursive_merge other
+    merger = proc do |key, v1, v2|
+      Hash === v1 && Hash === v2 ? v1.merge(v2, &merger) : v2
+    end
+    self.merge(other, &merger)
+  end
+end
+
 module Rack
   DEFAULT_CONFIG = {
     source_prefix: 'static/',
@@ -23,7 +32,7 @@ module Rack
   class ScriptStacker
     def initialize app, config={}
       @app = app
-      @config = DEFAULT_CONFIG.merge config
+      @config = DEFAULT_CONFIG.recursive_merge config
     end
 
     def call env
@@ -56,6 +65,7 @@ module Rack
 
     def files_for source_glob
       Dir[@config[:source_prefix] + source_glob]
+        .map { |file| ::File.basename(file) }
     end
 
     def serve_path path, filename
