@@ -1,13 +1,16 @@
 require "rack/scriptstacker/version"
 
-class ScriptFinder
+class String
+  def smart_deindent
+    first_line_indent = self.match(/^\s*/).to_s.size
+    self.gsub(/^\s{#{first_line_indent}}/, '')
+  end
 end
 
 module Rack
   class ScriptStacker
-    def initialize app, finder=nil
+    def initialize app
       @app = app
-      @finder = finder || ScriptFinder.new
     end
 
     def call env
@@ -23,11 +26,16 @@ module Rack
     private
 
     def replace_in_body body
-      body[0].gsub '<!-- ScriptStacker: JavaScript //-->' do
-        @finder.call.map do |filename|
-          '<script type="text/javascript" src="/static/javascripts/' + filename + '"></script>'
+      body[0].gsub /^(\s*)<<< JAVASCRIPT >>>/ do
+        indent = $1
+        js_files.map do |filename|
+          %Q[#{indent}<script type="text/javascript" src="/static/javascripts/#{filename}"></script>]
         end.join("\n")
       end
+
+    end
+
+    def js_files
     end
   end
 end
