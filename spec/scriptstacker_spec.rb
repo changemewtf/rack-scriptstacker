@@ -16,8 +16,8 @@ describe Rack::ScriptStacker do
 
   before :each do
     @middleware = Rack::ScriptStacker.new app_with_body(body)
-    allow(@middleware).to receive(:js_files).and_return(js_files)
-    allow(@middleware).to receive(:css_files).and_return(css_files)
+    allow(@middleware).to receive(:files_for).with('javascripts/*.js').and_return(js_files)
+    allow(@middleware).to receive(:files_for).with('css/*.css').and_return(css_files)
     @response = @middleware.call nil
     @response_body = @response[2][0]
   end
