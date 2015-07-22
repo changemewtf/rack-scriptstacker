@@ -41,7 +41,7 @@ describe Rack::ScriptStacker do
       smart_deindent(<<-HTML)
         <body>
           <div>lmao</div>
-          <<< JAVASCRIPT >>>
+          <!-- ScriptStacker: JAVASCRIPT //-->
         </body>
       HTML
     end
@@ -61,7 +61,7 @@ describe Rack::ScriptStacker do
     let(:body) do
       smart_deindent(<<-HTML)
         <head>
-          <<< CSS >>>
+          <!-- ScriptStacker: CSS //-->
         </head>
       HTML
     end
@@ -85,8 +85,8 @@ describe Rack::ScriptStacker do
     end
     let(:body) do
       smart_deindent(<<-HTML)
-        <<< CSS >>>
-        <<< JAVASCRIPT >>>
+        <!-- ScriptStacker: CSS //-->
+        <!-- ScriptStacker: JAVASCRIPT //-->
       HTML
     end
 
@@ -111,7 +111,7 @@ describe Rack::ScriptStacker do
       smart_deindent(<<-HTML)
         <body>
           <div>lmao</div>
-          <<< JAVASCRIPT >>>
+          <!-- ScriptStacker: JAVASCRIPT //-->
         </body>
       HTML
     end

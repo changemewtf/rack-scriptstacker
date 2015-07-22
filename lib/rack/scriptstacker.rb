@@ -105,7 +105,7 @@ module Rack
     end
 
     def replace_slot chunk
-      chunk.gsub /^(\s*)<<< #{@slot} >>>/ do
+      chunk.gsub /^(\s*)#{slot}/ do
         indent = $1
         @files.map do |line|
           indent + line
@@ -114,6 +114,10 @@ module Rack
     end
 
     private
+
+    def slot
+      "<!-- ScriptStacker: #{@slot} //-->"
+    end
 
     def files_for source_path
       Dir[source_path + @glob]
