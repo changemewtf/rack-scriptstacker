@@ -4,6 +4,8 @@ Painless static file handling for Rack apps.
 
 - Automatically configures `Rack::Static` by default.
 - Glob and inject JavaScript/CSS files into served HTML.
+  - Inserts CSS before `</head>` and JS before `</body>` by default.
+  - Change the inject mode to use placeholder slots instead.
 
 # Usage
 
@@ -13,10 +15,8 @@ Painless static file handling for Rack apps.
 <!doctype html>
 <html lang="en">
     <head>
-      <!-- ScriptStacker: CSS //-->
     </head>
     <body>
-      <!-- ScriptStacker: JAVASCRIPT //-->
     </body>
 </html>
 ```
@@ -32,7 +32,7 @@ class App
   def call env
     [
       200,
-      { 'Content-Type' => 'text/html' },
+      {'Content-Type' => 'text/html'},
       [File.read('index.html')]
     ]
   end
@@ -98,6 +98,27 @@ use Rack::ScriptStacker,
     stackers: {
       javascript: { template: '<script src="%s"></script>' }
     } do
+  javascript 'static/javascript'
+end
+```
+
+## Use placeholder slots
+
+```html
+<!-- index.html //-->
+
+<!doctype html>
+<html lang="en">
+    <head>
+      <!-- ScriptStacker: CSS //-->
+    </head>
+    <body>
+      <!-- ScriptStacker: JAVASCRIPT //-->
+    </body>
+</html>
+
+use Rack::ScriptStacker, inject_mode: :slot do
+  css 'static/css'
   javascript 'static/javascript'
 end
 ```

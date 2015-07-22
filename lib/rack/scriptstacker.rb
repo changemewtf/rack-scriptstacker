@@ -12,26 +12,39 @@ end
 
 module Rack
   class ScriptStacker
+    module InjectMode
+      TAG = :tag
+      SLOT = :slot
+    end
+
     DEFAULT_CONFIG = {
       configure_static: true,
+      inject_mode: InjectMode::TAG,
       stackers: {
         css: {
           template: '<link rel="stylesheet" type="text/css" href="%s" />',
           glob: '*.css',
-          slot: 'CSS'
+          slot: 'CSS',
+          inject_before_tag: '</head>',
         },
         javascript: {
           template: '<script type="text/javascript" src="%s"></script>',
           glob: '*.js',
-          slot: 'JAVASCRIPT'
+          slot: 'JAVASCRIPT',
+          inject_before_tag: '</body>',
         }
       }
     }
 
     def initialize app, config={}, &stack_spec
       @config = DEFAULT_CONFIG.recursive_merge config
-      @path_specs = ScriptStackerUtils::SpecSolidifier.new.call stack_spec
-      @runner = ScriptStackerUtils::Runner.new @config[:stackers]
+      @path_specs = ScriptStackerUtils::SpecSolidifier.new(
+        @config[:stackers].keys
+      ).call stack_spec
+      @runner = ScriptStackerUtils::Runner.new(
+        @config[:stackers],
+        @config[:inject_mode]
+      )
       @app = @config[:configure_static] ? configure_static(app) : app
     end
 
@@ -64,7 +77,8 @@ module Rack
 
   module ScriptStackerUtils
     class SpecSolidifier < BasicObject
-      def initialize
+      def initialize stacker_names
+        @stacker_names = stacker_names
         @specs = ::Hash.new { |hash, key|  hash[key] = [] }
       end
 
@@ -74,8 +88,13 @@ module Rack
       end
 
       def method_missing name, *args
+        if !@stacker_names.include? name
+          ::Kernel.raise ::ArgumentError.new(
+            "Expected one of #{@stacker_names}, but got #{name.inspect}."
+          )
+        end
         if args.size != 1
-          raise ::ArgumentError.new(
+          ::Kernel.raise ::ArgumentError.new(
             "Expected a path spec like 'static/css' => 'stylesheets', " +
             "but got #{args.inspect} instead."
           )
@@ -124,10 +143,11 @@ module Rack
     end
 
     class Runner
-      def initialize stacker_configs
+      def initialize stacker_configs, inject_mode
         @stackers = stacker_configs.map do |name, config|
           [name, Stacker.new(config)]
         end.to_h
+        @inject_mode = inject_mode
       end
 
       def replace_in_body body, path_specs
@@ -139,8 +159,21 @@ module Rack
 
         body.map do |chunk|
           @stackers.values.reduce chunk do |memo, stacker|
-            stacker.replace_slot memo
+            inject_into memo, stacker
           end
+        end
+      end
+
+      private
+
+      def inject_into chunk, stacker
+        case @inject_mode
+        when Rack::ScriptStacker::InjectMode::SLOT
+          stacker.replace_slot chunk
+        when Rack::ScriptStacker::InjectMode::TAG
+          stacker.tag_inject chunk
+        else
+          raise ArgumentError.new "Unexpected InjectMode #{@inject_mode.inspect}."
         end
       end
     end
@@ -150,6 +183,8 @@ module Rack
         @template = config[:template]
         @glob = config[:glob]
         @slot = config[:slot]
+        @inject_before_tag = config[:inject_before_tag]
+
         @files = []
       end
 
@@ -159,16 +194,31 @@ module Rack
         end
       end
 
+      def tag_inject chunk
+        lines = chunk.split "\n", -1 # this preserves any trailing newlines
+        index = lines.find_index { |line| line.match @inject_before_tag }
+        return if index.nil?
+        indent = lines[index].match(/^\s*/).to_s
+        (
+          lines[0...index] +
+          file_list(indent + '  ') +
+          lines[index..-1]
+        ).join "\n"
+      end
+
       def replace_slot chunk
         chunk.gsub /^(\s*)#{slot}/ do
-          indent = $1
-          @files.map do |line|
-            indent + line
-          end.join "\n"
+          file_list($1).join "\n"
         end
       end
 
       private
+
+      def file_list indent
+        @files.map do |line|
+          indent + line
+        end
+      end
 
       def slot
         "<!-- ScriptStacker: #{@slot} //-->"
