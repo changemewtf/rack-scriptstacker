@@ -21,9 +21,9 @@ describe Rack::ScriptStacker do
   end
 
   before :each do
-    allow_any_instance_of(Rack::Stacker).to receive(:files_for).with('static/css/').and_return(css_files)
-    allow_any_instance_of(Rack::Stacker).to receive(:files_for).with('static/javascripts/').and_return(js_files)
-    allow_any_instance_of(Rack::Stacker).to receive(:files_for).with('vendor/javascripts/').and_return(vendor_js_files)
+    allow_any_instance_of(Rack::ScriptStackerUtils::Stacker).to receive(:files_for).with('static/css/').and_return(css_files)
+    allow_any_instance_of(Rack::ScriptStackerUtils::Stacker).to receive(:files_for).with('static/javascripts/').and_return(js_files)
+    allow_any_instance_of(Rack::ScriptStackerUtils::Stacker).to receive(:files_for).with('vendor/javascripts/').and_return(vendor_js_files)
     @response = middleware.call nil
     @response_body = @response[2][0]
   end

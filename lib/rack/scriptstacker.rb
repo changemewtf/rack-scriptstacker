@@ -10,22 +10,22 @@ class ::Hash
 end
 
 module Rack
-  DEFAULT_CONFIG = {
-    stackers: {
-      css: {
-        template: '<link rel="stylesheet" type="text/css" href="%s" />',
-        glob: '*.css',
-        slot: 'CSS'
-      },
-      javascript: {
-        template: '<script type="text/javascript" src="%s"></script>',
-        glob: '*.js',
-        slot: 'JAVASCRIPT'
+  class ScriptStacker
+    DEFAULT_CONFIG = {
+      stackers: {
+        css: {
+          template: '<link rel="stylesheet" type="text/css" href="%s" />',
+          glob: '*.css',
+          slot: 'CSS'
+        },
+        javascript: {
+          template: '<script type="text/javascript" src="%s"></script>',
+          glob: '*.js',
+          slot: 'JAVASCRIPT'
+        }
       }
     }
-  }
 
-  class ScriptStacker
     def initialize app, config={}, &stack_spec
       @app = app
       @config = DEFAULT_CONFIG.recursive_merge config
@@ -49,79 +49,92 @@ module Rack
     private
 
     def replace_in_body body
-      StackSpecRunner.new(body).run_specs @stack_spec, @config[:stackers]
+      ScriptStackerUtils::StackSpecRunner.new(body).run_specs(
+        @stack_spec,
+        @config[:stackers]
+      )
     end
   end
 
-  class StackSpecRunner
-    def initialize body
-      @body = body
-    end
+  module ScriptStackerUtils
+    class StackSpecRunner
+      def initialize body
+        @body = body
+      end
 
-    def run_specs stack_spec, stacker_configs
-      stackers = stacker_configs.map do |name, config|
-        Stacker.new(config).tap do |stacker|
-          eigenclass = class << self; self; end
-          eigenclass.send :define_method, name do |paths|
-            if paths.respond_to? :key
-              # this is just for pretty method calls, eg.
-              # css 'stylesheets' => 'static/css'
-              source_path, serve_path = paths.to_a.flatten
-            else
-              # if only one path is given, use the same for both;
-              # this is just like how Rack::Static works
-              source_path = serve_path = paths
+      def run_specs stack_spec, stacker_configs
+        stackers = stacker_configs.map do |name, config|
+          Stacker.new(config).tap do |stacker|
+            eigenclass = class << self; self; end
+            eigenclass.send :define_method, name do |paths|
+              source_path, serve_path = paths_from_config paths
+              stacker.find_files source_path, serve_path
             end
-            stacker.find_files source_path, serve_path
+          end
+        end
+
+        instance_eval &stack_spec
+
+        @body.map do |chunk|
+          stackers.reduce chunk do |memo, stacker|
+            stacker.replace_slot(memo)
           end
         end
       end
 
-      instance_eval &stack_spec
+      private
 
-      @body.map do |chunk|
-        stackers.reduce chunk do |memo, stacker|
-          stacker.replace_slot(memo)
+      def paths_from_config paths
+        if paths.respond_to? :key
+          # this is just for pretty method calls, eg.
+          # css 'stylesheets' => 'static/css'
+          source_path, serve_path = paths.to_a.flatten
+        else
+          # if only one path is given, use the same for both;
+          # this is just like how Rack::Static works
+          source_path = serve_path = paths
+        end
+
+        [source_path, serve_path]
+      end
+    end
+
+    class Stacker
+      def initialize config
+        @template = config[:template]
+        @glob = config[:glob]
+        @slot = config[:slot]
+        @files = []
+      end
+
+      def find_files source_path, serve_path
+        source_path += '/' if !source_path.end_with? '/'
+        serve_path += '/' if !serve_path.end_with? '/'
+        serve_path = '/' + serve_path if !serve_path.start_with? '/'
+        @files = @files + files_for(source_path).map do |filename|
+          sprintf @template, serve_path + filename
         end
       end
-    end
-  end
 
-  class Stacker
-    def initialize config
-      @template = config[:template]
-      @glob = config[:glob]
-      @slot = config[:slot]
-      @files = []
-    end
-
-    def find_files source_path, serve_path
-      source_path += '/' if !source_path.end_with? '/'
-      serve_path += '/' if !serve_path.end_with? '/'
-      serve_path = '/' + serve_path if !serve_path.start_with? '/'
-      @files = @files + files_for(source_path).map do |filename|
-        sprintf @template, serve_path + filename
+      def replace_slot chunk
+        chunk.gsub /^(\s*)#{slot}/ do
+          indent = $1
+          @files.map do |line|
+            indent + line
+          end.join "\n"
+        end
       end
-    end
 
-    def replace_slot chunk
-      chunk.gsub /^(\s*)#{slot}/ do
-        indent = $1
-        @files.map do |line|
-          indent + line
-        end.join "\n"
+      private
+
+      def slot
+        "<!-- ScriptStacker: #{@slot} //-->"
       end
-    end
 
-    private
-
-    def slot
-      "<!-- ScriptStacker: #{@slot} //-->"
-    end
-
-    def files_for source_path
-      Dir[source_path + @glob]
-        .map { |file| ::File.basename(file) }
+      def files_for source_path
+        Dir[source_path + @glob]
+          .map { |file| ::File.basename(file) }
+      end
     end
   end
 end
