@@ -128,5 +128,8 @@ describe Rack::ScriptStacker do
       HTML
     end
   end
+
+  context 'Rack::Static' do
+  end
 end
 

@@ -29,7 +29,8 @@ module Rack
     def initialize app, config={}, &stack_spec
       @app = app
       @config = DEFAULT_CONFIG.recursive_merge config
-      @stack_spec = stack_spec
+      @path_specs = ScriptStackerUtils::SpecSolidifier.new.call stack_spec
+      @runner = ScriptStackerUtils::Runner.new @config[:stackers]
     end
 
     def call env
@@ -41,61 +42,85 @@ module Rack
         [
           response[0],
           response[1],
-          replace_in_body(response[2])
+          @runner.replace_in_body(response[2], @path_specs)
         ]
       end
-    end
-
-    private
-
-    def replace_in_body body
-      ScriptStackerUtils::StackSpecRunner.new(body).run_specs(
-        @stack_spec,
-        @config[:stackers]
-      )
     end
   end
 
   module ScriptStackerUtils
-    class StackSpecRunner
-      def initialize body
-        @body = body
+    class SpecSolidifier < BasicObject
+      def initialize
+        @specs = ::Hash.new { |hash, key|  hash[key] = [] }
       end
 
-      def run_specs stack_spec, stacker_configs
-        stackers = stacker_configs.map do |name, config|
-          Stacker.new(config).tap do |stacker|
-            eigenclass = class << self; self; end
-            eigenclass.send :define_method, name do |paths|
-              source_path, serve_path = paths_from_config paths
-              stacker.find_files source_path, serve_path
-            end
-          end
-        end
-
+      def call stack_spec
         instance_eval &stack_spec
+        @specs
+      end
 
-        @body.map do |chunk|
-          stackers.reduce chunk do |memo, stacker|
-            stacker.replace_slot(memo)
-          end
+      def method_missing name, *args
+        if args.size != 1
+          raise ::ArgumentError.new(
+            "Expected a path spec like 'static/css' => 'stylesheets', " +
+            "but got #{args.inspect} instead."
+          )
         end
+        @specs[name].push ::Rack::ScriptStackerUtils::PathSpec.new(args[0])
+      end
+    end
+
+    class PathSpec
+      def initialize paths
+        if paths.respond_to? :key
+          # this is just for pretty method calls, eg.
+          # css 'stylesheets' => 'static/css'
+          @source_path, @serve_path = paths.to_a.flatten
+        else
+          # if only one path is given, use the same for both;
+          # this is just like how Rack::Static works
+          @source_path = @serve_path = paths
+        end
+      end
+
+      def source_path
+        normalize_end_slash @source_path
+      end
+
+      def serve_path
+        normalize_end_slash normalize_begin_slash(@serve_path)
       end
 
       private
 
-      def paths_from_config paths
-        if paths.respond_to? :key
-          # this is just for pretty method calls, eg.
-          # css 'stylesheets' => 'static/css'
-          source_path, serve_path = paths.to_a.flatten
-        else
-          # if only one path is given, use the same for both;
-          # this is just like how Rack::Static works
-          source_path = serve_path = paths
+      def normalize_end_slash path
+        path.end_with?('/') ? path : path + '/'
+      end
+
+      def normalize_begin_slash path
+        path.start_with?('/') ? path : '/' + path
+      end
+    end
+
+    class Runner
+      def initialize stacker_configs
+        @stackers = stacker_configs.map do |name, config|
+          [name, Stacker.new(config)]
+        end.to_h
+      end
+
+      def replace_in_body body, path_specs
+        path_specs.each do |name, specs|
+          specs.each do |spec|
+            @stackers[name].find_files spec.source_path, spec.serve_path
+          end
         end
 
-        [source_path, serve_path]
+        body.map do |chunk|
+          @stackers.values.reduce chunk do |memo, stacker|
+            stacker.replace_slot memo
+          end
+        end
       end
     end
 
@@ -108,9 +133,6 @@ module Rack
       end
 
       def find_files source_path, serve_path
-        source_path += '/' if !source_path.end_with? '/'
-        serve_path += '/' if !serve_path.end_with? '/'
-        serve_path = '/' + serve_path if !serve_path.start_with? '/'
         @files = @files + files_for(source_path).map do |filename|
           sprintf @template, serve_path + filename
         end
