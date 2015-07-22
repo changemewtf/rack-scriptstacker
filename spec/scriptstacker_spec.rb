@@ -79,26 +79,39 @@ describe Rack::ScriptStacker do
   end
 
   context 'path normalization' do
-    let(:middleware) do
-      Rack::ScriptStacker.new app_with_body(body), configure_static: false do
-        css 'static/css/' => '/stylesheets'
-        javascript 'static/javascripts' => 'static/js'
+    let(:middleware) { nil }
+    let(:css_spec) { Rack::ScriptStackerUtils::PathSpec.new(
+      'static/css/' => '/stylesheets'
+    )}
+    let(:js_spec) { Rack::ScriptStackerUtils::PathSpec.new(
+      'static/javascripts' => 'static/js/'
+    )}
+
+    context 'serve path' do
+      it 'always serves with absolute paths' do
+        expect(js_spec.serve_path).to start_with('/')
+      end
+      it 'appends a slash when there is none, for concatenation simplicity' do
+        expect(css_spec.serve_path).to end_with('/')
+      end
+      it 'does not prepend a redundant slash' do
+        expect(css_spec.serve_path[0..1]).to_not start_with('//')
+      end
+      it 'does not append a redundant slash' do
+        expect(js_spec.serve_path[-2..-1]).to_not end_with('//')
       end
     end
-    let(:body) do
-      smart_deindent(<<-HTML)
-        <!-- ScriptStacker: CSS //-->
-        <!-- ScriptStacker: JAVASCRIPT //-->
-      HTML
-    end
 
-    it 'does not mess up the paths' do
-      expect(@response_body).to eq(smart_deindent(<<-HTML))
-        <link rel="stylesheet" type="text/css" href="/stylesheets/main.css" />
-        <link rel="stylesheet" type="text/css" href="/stylesheets/_whatever.css" />
-        <script type="text/javascript" src="/static/js/main.js"></script>
-        <script type="text/javascript" src="/static/js/util.js"></script>
-      HTML
+    context 'source path' do
+      it 'appends a slash when there is none, for concatenation simplicity' do
+        expect(js_spec.source_path).to end_with('/')
+      end
+      it 'does not prepend a slash, because local files are relative to pwd' do
+        expect(css_spec.source_path).to_not start_with('/')
+      end
+      it 'does not append a redundant slash' do
+        expect(css_spec.source_path).to_not end_with('//')
+      end
     end
   end
 
