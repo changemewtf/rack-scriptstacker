@@ -14,7 +14,7 @@ describe Rack::ScriptStacker do
   let(:vendor_js_files) { ['jquery.js', 'buttscript.js'] }
   let(:css_files) { ['main.css', '_whatever.css'] }
   let(:middleware) do
-    Rack::ScriptStacker.new app_with_body(body) do
+    Rack::ScriptStacker.new app_with_body(body), configure_static: false do
       css 'static/css'
       javascript 'static/javascripts'
     end
@@ -24,8 +24,10 @@ describe Rack::ScriptStacker do
     allow_any_instance_of(Rack::ScriptStackerUtils::Stacker).to receive(:files_for).with('static/css/').and_return(css_files)
     allow_any_instance_of(Rack::ScriptStackerUtils::Stacker).to receive(:files_for).with('static/javascripts/').and_return(js_files)
     allow_any_instance_of(Rack::ScriptStackerUtils::Stacker).to receive(:files_for).with('vendor/javascripts/').and_return(vendor_js_files)
-    @response = middleware.call nil
-    @response_body = @response[2][0]
+    if middleware
+      @response = middleware.call nil
+      @response_body = @response[2][0]
+    end
   end
 
   context 'inactive' do
@@ -78,7 +80,7 @@ describe Rack::ScriptStacker do
 
   context 'path normalization' do
     let(:middleware) do
-      Rack::ScriptStacker.new app_with_body(body) do
+      Rack::ScriptStacker.new app_with_body(body), configure_static: false do
         css 'static/css/' => '/stylesheets'
         javascript 'static/javascripts' => 'static/js'
       end
@@ -102,7 +104,7 @@ describe Rack::ScriptStacker do
 
   context 'multiple specs for one stacker' do
     let(:middleware) do
-      Rack::ScriptStacker.new app_with_body(body) do
+      Rack::ScriptStacker.new app_with_body(body), configure_static: false do
         javascript 'vendor/javascripts'
         javascript 'static/javascripts'
       end
@@ -130,6 +132,20 @@ describe Rack::ScriptStacker do
   end
 
   context 'Rack::Static' do
+    let(:body) { '<div>whatever</div>' }
+
+    it 'configures static automatically' do
+      expect(Rack::Static).to receive(:new).with(
+        duck_type(:call), {
+          urls: ['/static/css/', '/static/javascripts/']
+        }
+      )
+
+      Rack::ScriptStacker.new app_with_body(body), configure_static: true do
+        css 'static/css'
+        javascript 'static/javascripts'
+      end
+    end
   end
 end
 

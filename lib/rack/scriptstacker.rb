@@ -1,4 +1,5 @@
-require "rack/scriptstacker/version"
+require 'rack/scriptstacker/version'
+require 'rack'
 
 class ::Hash
   def recursive_merge other
@@ -12,6 +13,7 @@ end
 module Rack
   class ScriptStacker
     DEFAULT_CONFIG = {
+      configure_static: true,
       stackers: {
         css: {
           template: '<link rel="stylesheet" type="text/css" href="%s" />',
@@ -27,14 +29,14 @@ module Rack
     }
 
     def initialize app, config={}, &stack_spec
-      @app = app
       @config = DEFAULT_CONFIG.recursive_merge config
       @path_specs = ScriptStackerUtils::SpecSolidifier.new.call stack_spec
       @runner = ScriptStackerUtils::Runner.new @config[:stackers]
+      @app = @config[:configure_static] ? configure_static(app) : app
     end
 
     def call env
-      response = @app.call(env)
+      response = @app.call env
 
       if response[1]['Content-Type'] != 'text/html'
         response
@@ -45,6 +47,18 @@ module Rack
           @runner.replace_in_body(response[2], @path_specs)
         ]
       end
+    end
+
+    private
+
+    def configure_static app
+      Rack::Static.new app, {
+        urls: @path_specs
+          .values
+          .reduce([]) { |memo, specs| memo + specs }
+          .select { |spec| spec.paths_identical? }
+          .map { |spec| spec.serve_path }
+      }
     end
   end
 
@@ -89,6 +103,13 @@ module Rack
 
       def serve_path
         normalize_end_slash normalize_begin_slash(@serve_path)
+      end
+
+      def paths_identical?
+        # Paths are normalized differently, so this check isn't doable from
+        # outside the instance; but we still want to know if they're basically
+        # the same so we can easily configure Rack::Static to match.
+        @source_path == @serve_path
       end
 
       private
