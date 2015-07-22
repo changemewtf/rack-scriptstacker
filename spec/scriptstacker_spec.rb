@@ -167,10 +167,10 @@ describe Rack::ScriptStacker do
 end
 
 describe Rack::ScriptStackerUtils::PathSpec do
-  let(:css_spec) { subject.new(
+  let(:css_spec) { Rack::ScriptStackerUtils::PathSpec.new(
     'static/css/' => '/stylesheets'
   )}
-  let(:js_spec) { subject.new(
+  let(:js_spec) { Rack::ScriptStackerUtils::PathSpec.new(
     'static/javascripts' => 'static/js/'
   )}
 
