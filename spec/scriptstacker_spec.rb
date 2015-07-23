@@ -1,10 +1,6 @@
-require 'pry'
-require 'rack/scriptstacker'
+require 'cantrips/string/smart_deindent'
 
-def smart_deindent str
-  first_line_indent = str.match(/^\s*/).to_s.size
-  str.gsub(/^\s{#{first_line_indent}}/, '')
-end
+require 'rack/scriptstacker'
 
 def app_with_body body
   lambda { |env| [200, {'Content-Type' => 'text/html'}, [body]] }
@@ -49,7 +45,7 @@ describe Rack::ScriptStacker do
 
   context 'javascript' do
     let(:body) do
-      smart_deindent(<<-HTML)
+      <<-HTML.smart_deindent
         <body>
           <div>lmao</div>
           <!-- ScriptStacker: JAVASCRIPT //-->
@@ -57,7 +53,7 @@ describe Rack::ScriptStacker do
       HTML
     end
     it 'injects tags' do
-      expect(@response_body).to eq(smart_deindent(<<-HTML))
+      expect(@response_body).to eq(<<-HTML.smart_deindent)
         <body>
           <div>lmao</div>
           <script type="text/javascript" src="/static/javascripts/main.js"></script>
@@ -69,14 +65,14 @@ describe Rack::ScriptStacker do
 
   context 'css' do
     let(:body) do
-      smart_deindent(<<-HTML)
+      <<-HTML.smart_deindent
         <head>
           <!-- ScriptStacker: CSS //-->
         </head>
       HTML
     end
     it 'injects tags' do
-      expect(@response_body).to eq(smart_deindent(<<-HTML))
+      expect(@response_body).to eq(<<-HTML.smart_deindent)
         <head>
           <link rel="stylesheet" type="text/css" href="/static/css/main.css" />
           <link rel="stylesheet" type="text/css" href="/static/css/_whatever.css" />
@@ -93,7 +89,7 @@ describe Rack::ScriptStacker do
       }
     end
     let(:body) do
-      smart_deindent(<<-HTML)
+      <<-HTML.smart_deindent
         <body>
           <div>lmao</div>
           <!-- ScriptStacker: JAVASCRIPT //-->
@@ -101,7 +97,7 @@ describe Rack::ScriptStacker do
       HTML
     end
     it 'injects tags in order' do
-      expect(@response_body).to eq(smart_deindent(<<-HTML))
+      expect(@response_body).to eq(<<-HTML.smart_deindent)
         <body>
           <div>lmao</div>
           <script type="text/javascript" src="/vendor/javascripts/jquery.js"></script>
@@ -136,7 +132,7 @@ describe Rack::ScriptStacker do
       }
     end
     let(:body) do
-      smart_deindent(<<-HTML)
+      <<-HTML.smart_deindent
         <html>
           <head>
             <title>OH RLY</title>
@@ -148,7 +144,7 @@ describe Rack::ScriptStacker do
       HTML
     end
     it 'injects before the <head> and <body> tags' do
-      expect(@response_body).to eq(smart_deindent(<<-HTML))
+      expect(@response_body).to eq(<<-HTML.smart_deindent)
         <html>
           <head>
             <title>OH RLY</title>
