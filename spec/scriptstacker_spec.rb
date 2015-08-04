@@ -125,12 +125,13 @@ describe Rack::ScriptStacker do
     it 'configures static automatically' do
       expect(Rack::Static).to receive(:new).with(
         duck_type(:call), {
-          urls: ['/static/css/', '/static/javascripts/']
+          urls: ['/static/css/', '/static/javascripts/', '/static/images/']
         }
       )
       Rack::ScriptStacker.new app_with_body(body), configure_static: true do
         css 'static/css'
         javascript 'static/javascripts'
+        images 'static/images'
       end
     end
   end

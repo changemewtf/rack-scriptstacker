@@ -26,6 +26,9 @@ module Rack
           glob: '*.js',
           slot: 'JAVASCRIPT',
           inject_before_tag: '</body>',
+        },
+        images: {
+          skip_stack: true
         }
       }
     }
@@ -158,7 +161,9 @@ module Rack
       end
 
       def replace_in_body body, path_specs
-        stackers = @stacker_configs.map do |name, config|
+        stackers = @stacker_configs.select do |name, config|
+          !config[:skip_stack]
+        end.map do |name, config|
           [name, Stacker.new(config)]
         end.to_h
 
