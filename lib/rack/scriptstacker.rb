@@ -153,21 +153,23 @@ module Rack
 
     class Runner
       def initialize stacker_configs, inject_mode
-        @stackers = stacker_configs.map do |name, config|
-          [name, Stacker.new(config)]
-        end.to_h
+        @stacker_configs = stacker_configs
         @inject_mode = inject_mode
       end
 
       def replace_in_body body, path_specs
+        stackers = @stacker_configs.map do |name, config|
+          [name, Stacker.new(config)]
+        end.to_h
+
         path_specs.each do |name, specs|
           specs.each do |spec|
-            @stackers[name].find_files spec.source_path, spec.serve_path
+            stackers[name].find_files spec.source_path, spec.serve_path
           end
         end
 
         body.map do |chunk|
-          @stackers.values.reduce chunk do |memo, stacker|
+          stackers.values.reduce chunk do |memo, stacker|
             inject_into memo, stacker
           end
         end

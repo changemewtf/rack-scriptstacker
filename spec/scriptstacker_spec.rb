@@ -61,6 +61,17 @@ describe Rack::ScriptStacker do
         </body>
       HTML
     end
+
+    it 'does not duplicate files across multiple calls' do
+      response = middleware.call nil
+      expect(response[2][0]).to eq(<<-HTML.smart_deindent)
+        <body>
+          <div>lmao</div>
+          <script type="text/javascript" src="/static/javascripts/main.js"></script>
+          <script type="text/javascript" src="/static/javascripts/util.js"></script>
+        </body>
+      HTML
+    end
   end
 
   context 'css' do
