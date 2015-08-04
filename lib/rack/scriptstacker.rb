@@ -167,7 +167,9 @@ module Rack
           [name, Stacker.new(config)]
         end.to_h
 
-        path_specs.each do |name, specs|
+        path_specs.select do |name, specs|
+          stackers.has_key? name
+        end.each do |name, specs|
           specs.each do |spec|
             stackers[name].find_files spec.source_path, spec.serve_path
           end

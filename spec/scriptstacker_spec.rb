@@ -43,6 +43,18 @@ describe Rack::ScriptStacker do
     end
   end
 
+  context 'images' do
+    let(:stack_spec) do
+      Proc.new {
+        javascript 'static/javascripts'
+        images 'static/images'
+      }
+    end
+    let(:body) { '<div>whatever</div>' }
+    it 'should allow stackers with no injection' do
+    end
+  end
+
   context 'javascript' do
     let(:body) do
       <<-HTML.smart_deindent
