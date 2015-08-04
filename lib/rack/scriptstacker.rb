@@ -71,14 +71,22 @@ module Rack
 
   module ScriptStackerUtils
     class SpecSolidifier < BasicObject
-      def initialize stacker_names
+      def initialize stacker_names, directory=nil
         @stacker_names = stacker_names
         @specs = ::Hash.new { |hash, key|  hash[key] = [] }
+        @directory = directory
       end
 
       def call stack_spec
         instance_eval &stack_spec
         @specs
+      end
+
+      def directory dir_name, &block
+        SpecSolidifier.new(@stacker_names, dir_name).call(block)
+          .each do |stacker_name, specs|
+            @specs[stacker_name] += specs
+          end
       end
 
       def method_missing name, *args
@@ -93,7 +101,14 @@ module Rack
             "but got #{args.inspect} instead."
           )
         end
-        @specs[name].push ::Rack::ScriptStackerUtils::PathSpec.new(args[0])
+
+        if @directory
+          path = "#{@directory}/#{args[0]}"
+        else
+          path = args[0]
+        end
+
+        @specs[name].push ::Rack::ScriptStackerUtils::PathSpec.new(path)
       end
     end
 

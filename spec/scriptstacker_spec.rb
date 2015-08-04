@@ -160,6 +160,47 @@ describe Rack::ScriptStacker do
       HTML
     end
   end
+
+  context 'per-directory specs' do
+    let(:config) do
+      {
+        configure_static: false,
+        inject_mode: Rack::ScriptStacker::InjectMode::TAG
+      }
+    end
+    let(:stack_spec) do
+      Proc.new {
+        directory 'static' do
+          css 'css'
+          javascript 'javascripts'
+        end
+      }
+    end
+    let(:body) do
+      <<-HTML.smart_deindent
+        <html>
+          <head>
+          </head>
+          <body>
+          </body>
+        </html>
+      HTML
+    end
+    it 'injects tags correctly' do
+      expect(@response_body).to eq(<<-HTML.smart_deindent)
+        <html>
+          <head>
+            <link rel="stylesheet" type="text/css" href="/static/css/main.css" />
+            <link rel="stylesheet" type="text/css" href="/static/css/_whatever.css" />
+          </head>
+          <body>
+            <script type="text/javascript" src="/static/javascripts/main.js"></script>
+            <script type="text/javascript" src="/static/javascripts/util.js"></script>
+          </body>
+        </html>
+      HTML
+    end
+  end
 end
 
 describe Rack::ScriptStackerUtils::PathSpec do
